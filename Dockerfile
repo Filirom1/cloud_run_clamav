@@ -29,4 +29,4 @@ RUN pip install -r requirements.txt --user
 
 COPY main.py ./
 ENV PATH=$PATH:/var/lib/clamav/.local/bin
-CMD gunicorn --bind :$PORT --workers 1 --threads 1 --timeout 0 --worker-class gevent main:app
+CMD ["python3", "main.py"]

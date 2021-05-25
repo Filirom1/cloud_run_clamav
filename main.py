@@ -1,9 +1,12 @@
+#!/usr/bin/env python3
 import os
 import clamd
 import subprocess
 import datetime
 import google.cloud.storage
-from flask import Flask, request
+import json
+import logging
+from gevent.pywsgi import WSGIServer
 
 def get_timestamp():
     return datetime.datetime.utcnow().strftime("%Y/%m/%d %H:%M:%S UTC")
@@ -26,13 +29,26 @@ def start_clamd():
             print("clamd started")
             break
 
-app = Flask(__name__)
 start_clamd()
 
-@app.route('/', methods=['POST'])
-def post_http():
-    method_name = request.headers.get('ce-methodname')
-    resource_name = request.headers.get('ce-resourcename')
+def application(env, start_response):
+    try:
+        if env['PATH_INFO'] == '/' and env['REQUEST_METHOD'] == 'POST':
+            result = post_http(env)
+            json.dumps(result).encode()
+            start_response('200 OK', [('Content-Type', 'application/json')])
+            return [json.dumps(result).encode()]
+    except Exception as e:
+        print(e)
+        start_response('500 Internal Error', [('Content-Type', 'application/json')])
+        return [json.dumps(e).encode()]
+
+    start_response('404 Not Found', [('Content-Type', 'text/html')])
+    return [b'<h1>Not Found</h1>']
+
+def post_http(env):
+    method_name = env.get('HTTP_CE_METHODNAME')
+    resource_name = env.get('HTTP_CE_RESOURCENAME')
     print(f"{method_name} : {resource_name}")
     if method_name != 'storage.objects.create':
         return "BYE"
@@ -61,4 +77,4 @@ def post_http():
     return f"DONE {blob}"
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+    WSGIServer(('0.0.0.0', int(os.environ.get("PORT", 8080))), application).serve_forever()
